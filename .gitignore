@@ -7,3 +7,4 @@
 
 # Local test output
 .tmp/
+/.gitlab-ci-lsp-cache/

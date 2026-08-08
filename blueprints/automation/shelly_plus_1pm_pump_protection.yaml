@@ -10,7 +10,8 @@ blueprint:
       - forecast: 5-day / 3-hour forecast, used for purge warnings
 
     The Shelly script locally handles physical-input locking, forced frost
-    shutdown, purge-state invalidation, and sustained low-power shutdown.
+    shutdown, purge-state invalidation, automatic shutdown, and maximum-runtime
+    protection.
   domain: automation
   input:
     current_weather_entity:
@@ -42,6 +43,16 @@ blueprint:
         device:
           integration: shelly
 
+    frost_lock_helper:
+      name: Frost lock helper
+      description: >
+        Input boolean used to expose the Shelly frost-lock state to Home
+        Assistant dashboards. Create a Toggle helper and select it here.
+      selector:
+        entity:
+          filter:
+            - domain: input_boolean
+
     temperature_threshold:
       name: Frost cutoff
       description: Frost lock activates below this current outdoor temperature.
@@ -68,11 +79,12 @@ blueprint:
           unit_of_measurement: "°C"
           mode: box
 
-    low_power_threshold:
-      name: Low-power threshold
+    automatic_shutdown_threshold:
+      name: Automatic shutdown threshold
       description: >
         While the relay is on, sustained consumption below this value starts
-        the local Shelly shutdown timer.
+        the local Shelly automatic-shutdown timer. This stops the pump once it
+        is no longer drawing the power associated with useful pumping.
       default: 10
       selector:
         number:
@@ -82,11 +94,12 @@ blueprint:
           unit_of_measurement: "W"
           mode: box
 
-    low_power_duration:
-      name: Low-power shutdown delay
+    automatic_shutdown_duration:
+      name: Automatic shutdown delay
       description: >
-        Continuous time below the low-power threshold before the Shelly turns
-        the pump off. Any recovery above the threshold resets the timer.
+        Continuous time below the automatic shutdown threshold before the
+        Shelly turns the pump off. Any recovery above the threshold resets the
+        timer.
       default: 15
       selector:
         number:
@@ -94,6 +107,21 @@ blueprint:
           max: 120
           step: 1
           unit_of_measurement: "min"
+          mode: box
+
+    maximum_runtime:
+      name: Maximum runtime
+      description: >
+        Hard limit for one continuous relay-on period. This timer uses only
+        the relay state and does not depend on measured power or actual water
+        flow. The Shelly turns the relay off when the limit is reached.
+      default: 16
+      selector:
+        number:
+          min: 1
+          max: 48
+          step: 1
+          unit_of_measurement: "h"
           mode: box
 
     forecast_hours:
@@ -127,8 +155,9 @@ variables:
 
   temperature_threshold: !input temperature_threshold
   hysteresis: !input hysteresis
-  low_power_threshold: !input low_power_threshold
-  low_power_duration: !input low_power_duration
+  automatic_shutdown_threshold: !input automatic_shutdown_threshold
+  automatic_shutdown_duration: !input automatic_shutdown_duration
+  maximum_runtime: !input maximum_runtime
   forecast_hours: !input forecast_hours
 
   current_temperature: >
@@ -180,8 +209,10 @@ actions:
           {
             "cutoff_c": temperature_threshold | float,
             "hysteresis_c": hysteresis | float,
-            "low_power_w": low_power_threshold | float,
-            "low_power_seconds": (low_power_duration | float * 60) | int
+            "automatic_shutdown_w": automatic_shutdown_threshold | float,
+            "automatic_shutdown_seconds":
+              (automatic_shutdown_duration | float * 60) | int,
+            "maximum_runtime_seconds": (maximum_runtime | float * 3600) | int
           }
         }}
 
@@ -242,6 +273,29 @@ actions:
               device_id: !input shelly_device
               key: frost_lock
               value: true
+
+  # Mirror the authoritative KVS state into an HA entity for dashboards. This
+  # also preserves the existing state correctly while temperature is inside
+  # the hysteresis band. Missing/unreadable state is shown as locked.
+  - action: shelly.get_kvs_value
+    data:
+      device_id: !input shelly_device
+      key: frost_lock
+    response_variable: frost_state
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ (frost_state.value | default(true) | bool) == false }}
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input frost_lock_helper
+    default:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: !input frost_lock_helper
 
   # -------------------------------------------------------------------------
   # Forecast purge warning.

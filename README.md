@@ -7,7 +7,8 @@ The design deliberately keeps the critical enforcement on the Shelly:
 
 - frost lock disables the physical input and forces the pump off;
 - every pump start marks the water lines as **not purged**;
-- sustained low power automatically stops the pump;
+- automatic shutdown stops the pump once useful pumping has ended;
+- a maximum runtime limits how long the relay can remain on;
 - Home Assistant supplies current/forecast weather, configuration and alerts;
 - the Shelly retains its configuration/state in KVS if Home Assistant or the
   network is unavailable.
@@ -19,8 +20,9 @@ The design deliberately keeps the critical enforcement on the Shelly:
 | Frost cutoff | `< 4 °C` | HA decides, Shelly enforces |
 | Frost hysteresis | `1 °C` | HA |
 | Unlock temperature | `5 °C` with defaults | HA |
-| Low-power cutoff | `< 10 W` | Shelly |
-| Low-power duration | `15 min` continuous | Shelly |
+| Automatic shutdown threshold | `< 10 W` | Shelly |
+| Automatic shutdown delay | `15 min` continuous | Shelly |
+| Maximum runtime | `16 h` continuous | Shelly |
 | Line purge invalidation | Every pump ON | Shelly |
 | Forecast warning window | `24 h` | HA |
 | Forecast reminder | Every 6 h while required | HA |
@@ -53,7 +55,8 @@ The design deliberately keeps the critical enforcement on the Shelly:
        local enforcement
        - lock physical input
        - force OFF during frost
-       - low-power shutdown
+       - automatic shutdown
+       - maximum-runtime shutdown
        - invalidate purge state on pump ON
 ```
 
@@ -68,6 +71,9 @@ The design deliberately keeps the critical enforcement on the Shelly:
 │       └── mark_water_lines_purged.yaml
 ├── examples
 │   ├── dashboard-card.yaml
+│   ├── dashboard-card.de.yaml
+│   ├── dashboard-card.fr.yaml
+│   ├── dashboard-card.es.yaml
 │   └── notify-group.yaml
 ├── shelly
 │   └── pump_protection.js
@@ -84,8 +90,8 @@ The design deliberately keeps the critical enforcement on the Shelly:
   1. mode `current`
   2. mode `forecast`
 - At least one Home Assistant notification entity.
-- The pump must have a meaningful power draw above the configured low-power
-  threshold during normal operation.
+- The pump must have a meaningful power draw above the configured automatic
+  shutdown threshold during normal operation.
 
 > [!IMPORTANT]
 > This project is a convenience/safety automation, not certified frost,
@@ -158,8 +164,9 @@ On first startup the script creates conservative defaults if required:
 {
   "cutoff_c": 4,
   "hysteresis_c": 1,
-  "low_power_w": 10,
-  "low_power_seconds": 900
+  "automatic_shutdown_w": 10,
+  "automatic_shutdown_seconds": 900,
+  "maximum_runtime_seconds": 57600
 }
 ```
 
@@ -202,11 +209,16 @@ Reload automations/scripts or restart Home Assistant.
 
 ### 4. Create the pump-protection automation
 
+First create a **Toggle** helper named `Water Pump Frost Lock`. This exposes
+the Shelly KVS frost-lock state to dashboards; the automation keeps it
+synchronized and treats an unreadable state as locked.
+
 Create an automation from **Shelly Plus 1PM Pump Protection** and select:
 
 - **OpenWeatherMap current weather**: the entity from `current` mode.
 - **OpenWeatherMap forecast weather**: the entity from `forecast` mode.
 - **Shelly Plus 1PM**: the pump Shelly.
+- **Frost lock helper**: the toggle helper created above.
 - notification entities for everyone who should be warned.
 
 Defaults are:
@@ -214,8 +226,9 @@ Defaults are:
 ```text
 Frost cutoff:             4 °C
 Hysteresis:               1 °C
-Low-power threshold:     10 W
-Low-power timeout:       15 min
+Automatic shutdown threshold:  10 W
+Automatic shutdown delay:      15 min
+Maximum runtime:                16 h
 Forecast look-ahead:     24 h
 ```
 
@@ -231,6 +244,12 @@ Select the same Shelly and its pump switch.
 
 Add that script to your dashboard as a button. The script refuses the write
 while the pump relay is ON.
+
+The example dashboard card conditionally shows the pump switch only while the
+frost-lock helper is off. Otherwise it displays a frost-protection warning.
+Localized examples are provided for English (`dashboard-card.yaml`), German
+(`dashboard-card.de.yaml`), French (`dashboard-card.fr.yaml`), and Spanish
+(`dashboard-card.es.yaml`). Replace all example entity IDs before use.
 
 The purge workflow is:
 
@@ -261,8 +280,9 @@ Home Assistant owns this value and rewrites the complete object regularly:
 {
   "cutoff_c": 4,
   "hysteresis_c": 1,
-  "low_power_w": 10,
-  "low_power_seconds": 900
+  "automatic_shutdown_w": 10,
+  "automatic_shutdown_seconds": 900,
+  "maximum_runtime_seconds": 57600
 }
 ```
 
@@ -302,9 +322,9 @@ pump turns ON -> false
 manual purge + HA button while pump OFF -> true
 ```
 
-An automatic low-power shutdown does **not** mark the lines purged.
+An automatic shutdown does **not** mark the lines purged.
 
-## Low-power shutdown
+## Automatic shutdown
 
 While the relay is ON, the Shelly samples active power every five seconds.
 
@@ -328,6 +348,17 @@ does **not** shut the pump down because the 120 W interval reset the timer.
 
 If the power measurement is missing/invalid, the timer is also reset rather
 than treating the measurement as `0 W`.
+
+## Maximum runtime
+
+The maximum-runtime timer uses only the relay state. With the default
+configuration, one continuous 16-hour relay-on period turns the relay off. It
+does not depend on measured power, detected pumping activity, or water flow.
+This provides a final limit when a leak or continuous demand prevents automatic
+shutdown.
+
+Turning the pump off resets both timers. Changing any automatic-shutdown or
+maximum-runtime setting also resets them.
 
 ## Forecast purge warning
 
@@ -376,7 +407,8 @@ The Shelly keeps:
 - the last `frost_lock`;
 - the current `line_purged`.
 
-Low-power protection and purge invalidation continue locally.
+Automatic shutdown, maximum-runtime protection, and purge invalidation
+continue locally.
 
 ### `frost_lock` missing/unreadable
 
@@ -393,8 +425,8 @@ the current-temperature frost lock.
 
 ### Power measurement unavailable
 
-The low-power timer resets. A missing reading cannot cause a false
-low-power shutdown.
+The automatic-shutdown timer resets. A missing reading cannot cause a false
+automatic shutdown. The independent maximum-runtime timer continues.
 
 ## Testing
 
@@ -403,7 +435,7 @@ Do these tests before relying on the setup.
 1. **KVS synchronization**
    - Run the HA automation.
    - Inspect `pump_config` on the Shelly.
-   - Confirm all four values match the blueprint settings.
+   - Confirm all five values match the blueprint settings.
 
 2. **Physical frost lock**
    - Temporarily set the frost cutoff above the current outside temperature.
@@ -421,20 +453,25 @@ Do these tests before relying on the setup.
    - Start the pump.
    - Confirm `line_purged=false`.
 
-5. **Low-power shutdown**
+5. **Automatic shutdown**
    - Use a safe test value significantly above the pump's actual consumption
      and a short timeout.
    - Confirm the Shelly turns the relay off.
    - Restore the intended settings immediately afterward.
 
-6. **Forecast warning**
+6. **Maximum runtime**
+   - Temporarily select a short runtime and run the pump under safe conditions.
+   - Confirm the Shelly turns the relay off at the configured limit.
+   - Restore the intended setting immediately afterward.
+
+7. **Forecast warning**
    - Temporarily raise the cutoff above a forecast temperature.
    - Set `line_purged=false`.
    - Trigger the automation/forecast check and verify notifications.
 
 > [!WARNING]
-> Do not perform a low-power test in a way that could damage the pump, run it
-> dry, freeze plumbing, or defeat manufacturer protections.
+> Do not perform an automatic-shutdown test in a way that could damage the
+> pump, run it dry, freeze plumbing, or defeat manufacturer protections.
 
 ## Git
 

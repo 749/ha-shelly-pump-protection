@@ -1,16 +1,38 @@
 # Example Mushroom-less Lovelace cards using built-in card types.
 #
-# Replace entity IDs with your instantiated pump switch and script.
+# English version. Localized versions: dashboard-card.de.yaml,
+# dashboard-card.fr.yaml, and dashboard-card.es.yaml.
+#
+# Replace entity IDs with your pump switch, frost-lock input boolean, and
+# instantiated purge script.
 #
 # The script itself refuses to mark the lines purged while the pump is on.
 
 type: vertical-stack
 cards:
-  - type: entities
-    title: Water Pump
-    entities:
-      - entity: switch.water_pump
-        name: Pump
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_boolean.water_pump_frost_lock
+        state: "off"
+    card:
+      type: entities
+      title: Water pump
+      entities:
+        - entity: switch.water_pump
+          name: Pump
+
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_boolean.water_pump_frost_lock
+        state_not: "off"
+    card:
+      type: markdown
+      title: Water pump unavailable
+      content: >
+        **Frost protection is active.** The pump is locked and cannot be
+        switched on.
 
   - type: button
     name: Mark water lines purged

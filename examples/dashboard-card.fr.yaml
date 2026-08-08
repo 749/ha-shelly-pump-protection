@@ -1,0 +1,33 @@
+# Version française. Remplacez les identifiants d’entité avant utilisation.
+type: vertical-stack
+cards:
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_boolean.water_pump_frost_lock
+        state: "off"
+    card:
+      type: entities
+      title: Pompe à eau
+      entities:
+        - entity: switch.water_pump
+          name: Pompe
+
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_boolean.water_pump_frost_lock
+        state_not: "off"
+    card:
+      type: markdown
+      title: Pompe à eau indisponible
+      content: >
+        **La protection contre le gel est active.** La pompe est verrouillée
+        et ne peut pas être mise en marche.
+
+  - type: button
+    name: Marquer les conduites d’eau comme purgées
+    icon: mdi:pipe-valve
+    entity: script.mark_water_lines_purged
+    tap_action:
+      action: toggle
