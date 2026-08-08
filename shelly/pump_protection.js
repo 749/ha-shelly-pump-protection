@@ -33,13 +33,13 @@ let CONFIG_KEY = "pump_config";
 let FROST_KEY = "frost_lock";
 let PURGED_KEY = "line_purged";
 
-let DEFAULT_CONFIG = {
+let DEFAULT_CONFIG = JSON.stringify({
   cutoff_c: 4,
   hysteresis_c: 1,
   automatic_shutdown_w: 10,
   automatic_shutdown_seconds: 900,
   maximum_runtime_seconds: 57600
-};
+});
 
 let config = DEFAULT_CONFIG;
 let frostLocked = true;
@@ -78,6 +78,9 @@ function isNumber(value) {
 }
 
 function applyConfig(value) {
+  if (value === null || typeof value !== "object") {
+    value = JSON.parse(value);
+  }
   if (value === null || typeof value !== "object") {
     console.log("Invalid pump_config: expected object");
     return false;
