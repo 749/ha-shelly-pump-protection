@@ -1,0 +1,38 @@
+blueprint:
+  name: Mark Shelly Pump Water Lines Purged
+  description: >
+    Marks the Shelly KVS key line_purged=true, but only while the selected
+    pump switch is off. The Shelly pump-protection script automatically resets
+    line_purged=false whenever the relay turns on.
+  domain: script
+  input:
+    shelly_device:
+      name: Shelly Plus 1PM
+      selector:
+        device:
+          integration: shelly
+
+    pump_switch:
+      name: Pump switch
+      selector:
+        entity:
+          filter:
+            - domain: switch
+              integration: shelly
+
+sequence:
+  - if:
+      - condition: state
+        entity_id: !input pump_switch
+        state: "off"
+    then:
+      - action: shelly.set_kvs_value
+        data:
+          device_id: !input shelly_device
+          key: line_purged
+          value: true
+    else:
+      - stop: "Cannot mark water lines purged while the pump is running."
+        error: true
+
+mode: single

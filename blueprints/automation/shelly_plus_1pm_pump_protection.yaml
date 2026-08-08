@@ -1,0 +1,347 @@
+blueprint:
+  name: Shelly Plus 1PM Pump Protection
+  description: >
+    Synchronizes pump safety configuration to a Shelly Plus 1PM and manages
+    weather-based frost protection.
+
+    Requires TWO OpenWeatherMap integration instances using the non-subscription
+    Free API modes:
+      - current: current conditions, used for the live frost cutoff
+      - forecast: 5-day / 3-hour forecast, used for purge warnings
+
+    The Shelly script locally handles physical-input locking, forced frost
+    shutdown, purge-state invalidation, and sustained low-power shutdown.
+  domain: automation
+  input:
+    current_weather_entity:
+      name: OpenWeatherMap current weather
+      description: >
+        Weather entity from an OpenWeatherMap integration configured in
+        Free "current" mode.
+      selector:
+        entity:
+          filter:
+            - domain: weather
+              integration: openweathermap
+
+    forecast_weather_entity:
+      name: OpenWeatherMap forecast weather
+      description: >
+        Weather entity from a separate OpenWeatherMap integration configured in
+        Free "forecast" mode (5 days, 3-hour steps).
+      selector:
+        entity:
+          filter:
+            - domain: weather
+              integration: openweathermap
+
+    shelly_device:
+      name: Shelly Plus 1PM
+      description: Shelly Plus 1PM running shelly/pump_protection.js.
+      selector:
+        device:
+          integration: shelly
+
+    temperature_threshold:
+      name: Frost cutoff
+      description: Frost lock activates below this current outdoor temperature.
+      default: 4
+      selector:
+        number:
+          min: -20
+          max: 20
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+
+    hysteresis:
+      name: Frost hysteresis
+      description: >
+        Once locked, the pump unlocks at cutoff + hysteresis.
+        With defaults it locks below 4 °C and unlocks at 5 °C.
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+
+    low_power_threshold:
+      name: Low-power threshold
+      description: >
+        While the relay is on, sustained consumption below this value starts
+        the local Shelly shutdown timer.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 500
+          step: 1
+          unit_of_measurement: "W"
+          mode: box
+
+    low_power_duration:
+      name: Low-power shutdown delay
+      description: >
+        Continuous time below the low-power threshold before the Shelly turns
+        the pump off. Any recovery above the threshold resets the timer.
+      default: 15
+      selector:
+        number:
+          min: 1
+          max: 120
+          step: 1
+          unit_of_measurement: "min"
+          mode: box
+
+    forecast_hours:
+      name: Purge warning look-ahead
+      description: >
+        Warn when the OpenWeatherMap forecast reaches below the frost cutoff
+        within this many hours.
+      default: 24
+      selector:
+        number:
+          min: 3
+          max: 120
+          step: 3
+          unit_of_measurement: "h"
+          mode: box
+
+    notification_targets:
+      name: Notification targets
+      description: >
+        Notify entities for all users who should receive the purge warning.
+        A Notify Group is recommended.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: notify
+
+variables:
+  current_weather_entity: !input current_weather_entity
+  forecast_weather_entity: !input forecast_weather_entity
+
+  temperature_threshold: !input temperature_threshold
+  hysteresis: !input hysteresis
+  low_power_threshold: !input low_power_threshold
+  low_power_duration: !input low_power_duration
+  forecast_hours: !input forecast_hours
+
+  current_temperature: >
+    {{ state_attr(current_weather_entity, 'temperature') }}
+
+  unlock_temperature: >
+    {{
+      (temperature_threshold | float)
+      + (hysteresis | float)
+    }}
+
+triggers:
+  # Current OWM updates are the primary frost-lock trigger.
+  - trigger: state
+    entity_id: !input current_weather_entity
+    id: current_weather
+
+  # Forecast entity updates can trigger an immediate purge check.
+  - trigger: state
+    entity_id: !input forecast_weather_entity
+    id: forecast_weather
+
+  # Restore/synchronize state after HA starts.
+  - trigger: homeassistant
+    event: start
+    id: startup
+
+  # Reconcile configuration and frost state even if an update was missed.
+  - trigger: time_pattern
+    minutes: "/5"
+    id: reconcile
+
+  # Repeat an outstanding purge warning at a deliberately low frequency.
+  - trigger: time_pattern
+    hours: "/6"
+    minutes: "0"
+    id: forecast_reminder
+
+actions:
+  # -------------------------------------------------------------------------
+  # Synchronize the complete configuration object to Shelly KVS.
+  # -------------------------------------------------------------------------
+  - action: shelly.set_kvs_value
+    data:
+      device_id: !input shelly_device
+      key: pump_config
+      value: >
+        {{
+          {
+            "cutoff_c": temperature_threshold | float,
+            "hysteresis_c": hysteresis | float,
+            "low_power_w": low_power_threshold | float,
+            "low_power_seconds": (low_power_duration | float * 60) | int
+          }
+        }}
+
+  # -------------------------------------------------------------------------
+  # Current-weather frost lock with one-sided hysteresis.
+  #
+  # T < cutoff:
+  #   lock
+  #
+  # cutoff <= T < cutoff + hysteresis:
+  #   preserve previous Shelly frost_lock value
+  #
+  # T >= cutoff + hysteresis:
+  #   unlock
+  #
+  # unavailable/non-numeric current weather:
+  #   fail safe -> lock
+  # -------------------------------------------------------------------------
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_number(current_temperature)
+                and (current_temperature | float)
+                  < (temperature_threshold | float)
+              }}
+        sequence:
+          - action: shelly.set_kvs_value
+            data:
+              device_id: !input shelly_device
+              key: frost_lock
+              value: true
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_number(current_temperature)
+                and (current_temperature | float)
+                  >= (unlock_temperature | float)
+              }}
+        sequence:
+          - action: shelly.set_kvs_value
+            data:
+              device_id: !input shelly_device
+              key: frost_lock
+              value: false
+
+    default:
+      - if:
+          - condition: template
+            value_template: >
+              {{ not is_number(current_temperature) }}
+        then:
+          - action: shelly.set_kvs_value
+            data:
+              device_id: !input shelly_device
+              key: frost_lock
+              value: true
+
+  # -------------------------------------------------------------------------
+  # Forecast purge warning.
+  #
+  # Check on forecast updates, startup, and every six hours. Reconciliation
+  # itself does not send a warning, avoiding a notification every 5 minutes.
+  # -------------------------------------------------------------------------
+  - if:
+      - condition: trigger
+        id:
+          - forecast_weather
+          - startup
+          - forecast_reminder
+    then:
+      - action: shelly.get_kvs_value
+        data:
+          device_id: !input shelly_device
+          key: line_purged
+        response_variable: purge_state
+
+      - action: weather.get_forecasts
+        target:
+          entity_id: !input forecast_weather_entity
+        data:
+          type: hourly
+        response_variable: weather_forecast
+
+      - variables:
+          lines_purged: >
+            {{ purge_state.value | default(false) | bool }}
+
+          forecast_entries: >
+            {{
+              weather_forecast[forecast_weather_entity]['forecast']
+              if forecast_weather_entity in weather_forecast
+              else []
+            }}
+
+          cutoff_forecast: >
+            {% set ns = namespace(found=false) %}
+            {% set limit = now() + timedelta(hours=forecast_hours | int) %}
+            {% for item in forecast_entries %}
+              {% set timestamp = as_datetime(item.datetime, default=none) %}
+              {% if
+                timestamp is not none
+                and timestamp >= now()
+                and timestamp <= limit
+                and item.temperature is defined
+                and is_number(item.temperature)
+                and (item.temperature | float)
+                  < (temperature_threshold | float)
+              %}
+                {% set ns.found = true %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.found }}
+
+          forecast_minimum: >
+            {% set ns = namespace(temps=[]) %}
+            {% set limit = now() + timedelta(hours=forecast_hours | int) %}
+            {% for item in forecast_entries %}
+              {% set timestamp = as_datetime(item.datetime, default=none) %}
+              {% if
+                timestamp is not none
+                and timestamp >= now()
+                and timestamp <= limit
+                and item.temperature is defined
+                and is_number(item.temperature)
+              %}
+                {% set ns.temps = ns.temps + [item.temperature | float] %}
+              {% endif %}
+            {% endfor %}
+            {{
+              (ns.temps | min)
+              if ns.temps | length > 0
+              else none
+            }}
+
+      - if:
+          - condition: template
+            value_template: >
+              {{
+                (cutoff_forecast | bool)
+                and not (lines_purged | bool)
+              }}
+        then:
+          - action: notify.send_message
+            target:
+              entity_id: !input notification_targets
+            data:
+              message: >
+                Water lines need purging. OpenWeatherMap predicts a temperature
+                below {{ temperature_threshold }} °C within the next
+                {{ forecast_hours }} hours.
+                {% if forecast_minimum is not none %}
+                Forecast minimum: {{ forecast_minimum | round(1) }} °C.
+                {% endif %}
+                The Shelly currently reports the lines as NOT PURGED.
+                Turn the pump off, purge the lines manually, then run the
+                "Mark water lines purged" Home Assistant script.
+
+mode: restart
+max_exceeded: silent

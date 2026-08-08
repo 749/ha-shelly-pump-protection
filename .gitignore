@@ -1,0 +1,9 @@
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*~
+
+# Local test output
+.tmp/

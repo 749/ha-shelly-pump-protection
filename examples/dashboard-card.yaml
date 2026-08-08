@@ -1,0 +1,20 @@
+# Example Mushroom-less Lovelace cards using built-in card types.
+#
+# Replace entity IDs with your instantiated pump switch and script.
+#
+# The script itself refuses to mark the lines purged while the pump is on.
+
+type: vertical-stack
+cards:
+  - type: entities
+    title: Water Pump
+    entities:
+      - entity: switch.water_pump
+        name: Pump
+
+  - type: button
+    name: Mark water lines purged
+    icon: mdi:pipe-valve
+    entity: script.mark_water_lines_purged
+    tap_action:
+      action: toggle

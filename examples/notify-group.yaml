@@ -1,0 +1,17 @@
+# Optional legacy notify group for Companion App targets.
+#
+# Add/merge this under the top-level `notify:` key in configuration.yaml.
+# Replace the example action names with your actual mobile_app notify actions.
+#
+# This creates the action:
+#   notify.all_pump_users
+#
+# Modern notify entities can instead be grouped in the Home Assistant UI and
+# selected directly in the automation blueprint.
+
+notify:
+  - platform: group
+    name: all_pump_users
+    services:
+      - action: mobile_app_jan_phone
+      - action: mobile_app_other_user_phone
