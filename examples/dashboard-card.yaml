@@ -3,8 +3,8 @@
 # English version. Localized versions: dashboard-card.de.yaml,
 # dashboard-card.fr.yaml, and dashboard-card.es.yaml.
 #
-# Replace entity IDs with your pump switch, frost-lock input boolean, and
-# instantiated purge script.
+# Replace entity IDs with your pump switch, frost-lock and water-lines-purged
+# input booleans, and instantiated purge script.
 #
 # The script itself refuses to mark the lines purged while the pump is on.
 
@@ -16,11 +16,13 @@ cards:
         entity: input_boolean.water_pump_frost_lock
         state: "off"
     card:
-      type: entities
-      title: Water pump
-      entities:
-        - entity: switch.water_pump
-          name: Pump
+      type: button
+      entity: switch.water_pump
+      name: Water pump
+      icon: mdi:water-pump
+      show_state: true
+      tap_action:
+        action: toggle
 
   - type: conditional
     conditions:
@@ -34,9 +36,15 @@ cards:
         **Frost protection is active.** The pump is locked and cannot be
         switched on.
 
-  - type: button
-    name: Mark water lines purged
-    icon: mdi:pipe-valve
-    entity: script.mark_water_lines_purged
-    tap_action:
-      action: toggle
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_boolean.water_lines_purged
+        state: "off"
+    card:
+      type: button
+      name: Mark water lines purged
+      icon: mdi:pipe-valve
+      entity: script.mark_water_lines_purged
+      tap_action:
+        action: toggle

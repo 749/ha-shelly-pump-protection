@@ -209,16 +209,18 @@ Reload automations/scripts or restart Home Assistant.
 
 ### 4. Create the pump-protection automation
 
-First create a **Toggle** helper named `Water Pump Frost Lock`. This exposes
-the Shelly KVS frost-lock state to dashboards; the automation keeps it
-synchronized and treats an unreadable state as locked.
+First create two **Toggle** helpers named `Water Pump Frost Lock` and
+`Water Lines Purged`. These expose the corresponding Shelly KVS states to
+dashboards. The automation keeps both synchronized and treats unreadable
+states as locked and not purged, respectively.
 
 Create an automation from **Shelly Plus 1PM Pump Protection** and select:
 
 - **OpenWeatherMap current weather**: the entity from `current` mode.
 - **OpenWeatherMap forecast weather**: the entity from `forecast` mode.
 - **Shelly Plus 1PM**: the pump Shelly.
-- **Frost lock helper**: the toggle helper created above.
+- **Frost lock helper**: the frost-lock toggle helper created above.
+- **Water lines purged helper**: the purge-state toggle helper created above.
 - notification entities for everyone who should be warned.
 
 Defaults are:
@@ -240,13 +242,14 @@ reconciliation trigger will synchronize it automatically.
 
 Create a script from the **Mark Shelly Pump Water Lines Purged** blueprint.
 
-Select the same Shelly and its pump switch.
+Select the same Shelly, its pump switch, and the `Water Lines Purged` helper.
 
 Add that script to your dashboard as a button. The script refuses the write
 while the pump relay is ON.
 
 The example dashboard card conditionally shows the pump switch only while the
 frost-lock helper is off. Otherwise it displays a frost-protection warning.
+The purge button is shown only while the water-lines-purged helper is off.
 Localized examples are provided for English (`dashboard-card.yaml`), German
 (`dashboard-card.de.yaml`), French (`dashboard-card.fr.yaml`), and Spanish
 (`dashboard-card.es.yaml`). Replace all example entity IDs before use.

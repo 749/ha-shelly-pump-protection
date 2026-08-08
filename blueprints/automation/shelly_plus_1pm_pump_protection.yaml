@@ -53,6 +53,16 @@ blueprint:
           filter:
             - domain: input_boolean
 
+    line_purged_helper:
+      name: Water lines purged helper
+      description: >
+        Input boolean used to mirror the Shelly line_purged state for Home
+        Assistant dashboards. Create a Toggle helper and select it here.
+      selector:
+        entity:
+          filter:
+            - domain: input_boolean
+
     temperature_threshold:
       name: Frost cutoff
       description: Frost lock activates below this current outdoor temperature.
@@ -297,6 +307,28 @@ actions:
         target:
           entity_id: !input frost_lock_helper
 
+  # Mirror the purge state for dashboard visibility. The purge script updates
+  # this helper immediately; reconciliation recovers Shelly-side changes.
+  - action: shelly.get_kvs_value
+    data:
+      device_id: !input shelly_device
+      key: line_purged
+    response_variable: purge_state
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ purge_state.value | default(false) | bool }}
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: !input line_purged_helper
+    default:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: !input line_purged_helper
+
   # -------------------------------------------------------------------------
   # Forecast purge warning.
   #
@@ -310,12 +342,6 @@ actions:
           - startup
           - forecast_reminder
     then:
-      - action: shelly.get_kvs_value
-        data:
-          device_id: !input shelly_device
-          key: line_purged
-        response_variable: purge_state
-
       - action: weather.get_forecasts
         target:
           entity_id: !input forecast_weather_entity

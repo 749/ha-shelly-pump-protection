@@ -7,11 +7,13 @@ cards:
         entity: input_boolean.water_pump_frost_lock
         state: "off"
     card:
-      type: entities
-      title: Bomba de agua
-      entities:
-        - entity: switch.water_pump
-          name: Bomba
+      type: button
+      entity: switch.water_pump
+      name: Bomba de agua
+      icon: mdi:water-pump
+      show_state: true
+      tap_action:
+        action: toggle
 
   - type: conditional
     conditions:
@@ -25,9 +27,15 @@ cards:
         **La protección contra heladas está activa.** La bomba está bloqueada
         y no se puede encender.
 
-  - type: button
-    name: Marcar las tuberías de agua como purgadas
-    icon: mdi:pipe-valve
-    entity: script.mark_water_lines_purged
-    tap_action:
-      action: toggle
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_boolean.water_lines_purged
+        state: "off"
+    card:
+      type: button
+      name: Marcar las tuberías de agua como purgadas
+      icon: mdi:pipe-valve
+      entity: script.mark_water_lines_purged
+      tap_action:
+        action: toggle

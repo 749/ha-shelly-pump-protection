@@ -20,6 +20,16 @@ blueprint:
             - domain: switch
               integration: shelly
 
+    line_purged_helper:
+      name: Water lines purged helper
+      description: >
+        The Toggle helper selected as the water-lines-purged helper in the
+        pump-protection automation.
+      selector:
+        entity:
+          filter:
+            - domain: input_boolean
+
 sequence:
   - if:
       - condition: state
@@ -31,6 +41,9 @@ sequence:
           device_id: !input shelly_device
           key: line_purged
           value: true
+      - action: input_boolean.turn_on
+        target:
+          entity_id: !input line_purged_helper
     else:
       - stop: "Cannot mark water lines purged while the pump is running."
         error: true

@@ -7,11 +7,13 @@ cards:
         entity: input_boolean.water_pump_frost_lock
         state: "off"
     card:
-      type: entities
-      title: Wasserpumpe
-      entities:
-        - entity: switch.water_pump
-          name: Pumpe
+      type: button
+      entity: switch.water_pump
+      name: Wasserpumpe
+      icon: mdi:water-pump
+      show_state: true
+      tap_action:
+        action: toggle
 
   - type: conditional
     conditions:
@@ -25,9 +27,15 @@ cards:
         **Der Frostschutz ist aktiv.** Die Pumpe ist gesperrt und kann nicht
         eingeschaltet werden.
 
-  - type: button
-    name: Wasserleitungen als entleert markieren
-    icon: mdi:pipe-valve
-    entity: script.mark_water_lines_purged
-    tap_action:
-      action: toggle
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_boolean.water_lines_purged
+        state: "off"
+    card:
+      type: button
+      name: Wasserleitungen als entleert markieren
+      icon: mdi:pipe-valve
+      entity: script.mark_water_lines_purged
+      tap_action:
+        action: toggle
