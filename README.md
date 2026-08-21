@@ -22,7 +22,7 @@ The design deliberately keeps the critical enforcement on the Shelly:
 | Unlock temperature | `5 °C` with defaults | HA |
 | Automatic shutdown threshold | `< 10 W` | Shelly |
 | Automatic shutdown delay | `15 min` continuous | Shelly |
-| Maximum runtime | `16 h` continuous | Shelly |
+| Maximum runtime | `30 min` continuous | Shelly |
 | Line purge invalidation | Every pump ON | Shelly |
 | Forecast warning window | `24 h` | HA |
 | Forecast reminder | Every 6 h while required | HA |
@@ -166,7 +166,7 @@ On first startup the script creates conservative defaults if required:
   "hysteresis_c": 1,
   "automatic_shutdown_w": 10,
   "automatic_shutdown_seconds": 900,
-  "maximum_runtime_seconds": 57600
+  "maximum_runtime_seconds": 1800
 }
 ```
 
@@ -230,7 +230,7 @@ Frost cutoff:             4 °C
 Hysteresis:               1 °C
 Automatic shutdown threshold:  10 W
 Automatic shutdown delay:      15 min
-Maximum runtime:                16 h
+Maximum runtime:                30 min
 Forecast look-ahead:     24 h
 ```
 
@@ -285,7 +285,7 @@ Home Assistant owns this value and rewrites the complete object regularly:
   "hysteresis_c": 1,
   "automatic_shutdown_w": 10,
   "automatic_shutdown_seconds": 900,
-  "maximum_runtime_seconds": 57600
+  "maximum_runtime_seconds": 1800
 }
 ```
 

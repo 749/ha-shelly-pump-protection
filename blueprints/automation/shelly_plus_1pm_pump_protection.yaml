@@ -125,13 +125,13 @@ blueprint:
         Hard limit for one continuous relay-on period. This timer uses only
         the relay state and does not depend on measured power or actual water
         flow. The Shelly turns the relay off when the limit is reached.
-      default: 16
+      default: 30
       selector:
         number:
           min: 1
-          max: 48
+          max: 2880
           step: 1
-          unit_of_measurement: "h"
+          unit_of_measurement: "min"
           mode: box
 
     forecast_hours:
@@ -222,7 +222,7 @@ actions:
             "automatic_shutdown_w": automatic_shutdown_threshold | float,
             "automatic_shutdown_seconds":
               (automatic_shutdown_duration | float * 60) | int,
-            "maximum_runtime_seconds": (maximum_runtime | float * 3600) | int
+            "maximum_runtime_seconds": (maximum_runtime | float * 60) | int
           }
         }}
 

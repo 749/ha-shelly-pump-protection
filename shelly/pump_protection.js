@@ -15,7 +15,7 @@
 //   "hysteresis_c": 1,
 //   "automatic_shutdown_w": 10,
 //   "automatic_shutdown_seconds": 900,
-//   "maximum_runtime_seconds": 57600
+//   "maximum_runtime_seconds": 1800
 // }
 //
 // frost_lock:
@@ -38,7 +38,7 @@ let DEFAULT_CONFIG = JSON.stringify({
   hysteresis_c: 1,
   automatic_shutdown_w: 10,
   automatic_shutdown_seconds: 900,
-  maximum_runtime_seconds: 57600
+  maximum_runtime_seconds: 1800
 });
 
 let config = DEFAULT_CONFIG;
