@@ -221,7 +221,8 @@ additional pump controls. Select any number of pump buttons in the blueprint.
 Each press starts the pump when it is off or stops it when it is on. Select
 light or switch entities as pump status LEDs; the automation turns all of them
 on while the Shelly pump relay is powered and off when it is not. A press that
-would start the pump is ignored while frost protection is active.
+would start the pump is ignored while frost protection is active, and the
+configured status LEDs flash three times to indicate the frost-lock error.
 Entity startup and recovery from an unavailable state are not treated as
 button presses, preventing an accidental pump start after Home Assistant boots.
 
@@ -492,7 +493,8 @@ Do these tests before relying on the setup.
      and every status LED turn on.
    - Press each button again and confirm the pump and every status LED turn
      off.
-   - Activate the frost lock and confirm the buttons cannot start the pump.
+   - Activate the frost lock and confirm the buttons cannot start the pump and
+     that every configured status LED flashes three times.
 
 > [!WARNING]
 > Do not perform an automatic-shutdown test in a way that could damage the

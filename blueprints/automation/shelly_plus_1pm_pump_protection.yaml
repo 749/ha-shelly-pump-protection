@@ -71,7 +71,9 @@ blueprint:
       name: Pump status LEDs
       description: >
         Optional light or switch entities used as status LEDs. They are on
-        while the pump relay is powered and off while it is not powered.
+        while the pump relay is powered and off while it is not powered. If a
+        button tries to start the pump during frost lock, they flash three
+        times.
       default: []
       selector:
         entity:
@@ -404,12 +406,33 @@ actions:
                 target:
                   entity_id: !input pump_switch_entity
             else:
-              - condition: state
-                entity_id: !input frost_lock_helper
-                state: "off"
-              - action: switch.turn_on
-                target:
-                  entity_id: !input pump_switch_entity
+              - if:
+                  - condition: state
+                    entity_id: !input frost_lock_helper
+                    state: "off"
+                then:
+                  - action: switch.turn_on
+                    target:
+                      entity_id: !input pump_switch_entity
+                else:
+                  - if:
+                      - condition: template
+                        value_template: >
+                          {{ pump_status_led_entities | length > 0 }}
+                    then:
+                      - repeat:
+                          count: 3
+                          sequence:
+                            - action: homeassistant.turn_on
+                              target:
+                                entity_id: !input pump_status_led_entities
+                            - delay:
+                                milliseconds: 300
+                            - action: homeassistant.turn_off
+                              target:
+                                entity_id: !input pump_status_led_entities
+                            - delay:
+                                milliseconds: 300
 
   - if:
       - condition: template
