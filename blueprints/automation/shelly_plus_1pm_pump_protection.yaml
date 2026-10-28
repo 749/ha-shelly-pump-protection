@@ -52,23 +52,13 @@ blueprint:
             - domain: switch
               integration: shelly
 
-    start_button_entities:
-      name: Additional start buttons
+    pump_button_entities:
+      name: Additional pump buttons
       description: >
-        Optional button entities that should start the pump. Both Button
-        helpers and device button entities are supported. Starts are ignored
-        while frost protection is active.
-      default: []
-      selector:
-        entity:
-          multiple: true
-          filter:
-            - domain: input_button
-            - domain: button
-
-    stop_button_entities:
-      name: Additional stop buttons
-      description: Optional button entities that should stop the pump.
+        Optional start/stop button entities. Each press stops the pump when it
+        is on, or starts it when it is off. Starts are ignored while frost
+        protection is active. Both Button helpers and device button entities
+        are supported.
       default: []
       selector:
         entity:
@@ -231,12 +221,8 @@ variables:
 triggers:
   # Optional HA buttons provide additional pump controls.
   - trigger: state
-    entity_id: !input start_button_entities
-    id: start_button
-
-  - trigger: state
-    entity_id: !input stop_button_entities
-    id: stop_button
+    entity_id: !input pump_button_entities
+    id: pump_button
 
   # Keep optional status LEDs synchronized with the actual relay state.
   - trigger: state
@@ -398,7 +384,7 @@ actions:
   - choose:
       - conditions:
           - condition: trigger
-            id: start_button
+            id: pump_button
           # Ignore entity creation and unavailable/unknown recovery so a
           # Home Assistant restart cannot accidentally start the pump.
           - condition: template
@@ -409,29 +395,21 @@ actions:
                 and trigger.to_state is not none
                 and trigger.to_state.state not in ['unknown', 'unavailable']
               }}
-          - condition: state
-            entity_id: !input frost_lock_helper
-            state: "off"
         sequence:
-          - action: switch.turn_on
-            target:
-              entity_id: !input pump_switch_entity
-
-      - conditions:
-          - condition: trigger
-            id: stop_button
-          - condition: template
-            value_template: >
-              {{
-                trigger.from_state is not none
-                and trigger.from_state.state not in ['unknown', 'unavailable']
-                and trigger.to_state is not none
-                and trigger.to_state.state not in ['unknown', 'unavailable']
-              }}
-        sequence:
-          - action: switch.turn_off
-            target:
-              entity_id: !input pump_switch_entity
+          - if:
+              - condition: template
+                value_template: "{{ is_state(pump_switch_entity, 'on') }}"
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input pump_switch_entity
+            else:
+              - condition: state
+                entity_id: !input frost_lock_helper
+                state: "off"
+              - action: switch.turn_on
+                target:
+                  entity_id: !input pump_switch_entity
 
   - if:
       - condition: template

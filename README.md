@@ -217,10 +217,11 @@ dashboards. The automation keeps both synchronized and treats unreadable
 states as locked and not purged, respectively.
 
 You can also create Button helpers or use existing device button entities as
-additional pump controls. Select any number of start buttons and stop buttons
-in the blueprint. Select light or switch entities as pump status LEDs; the
-automation turns all of them on while the Shelly pump relay is powered and off
-when it is not. Start presses are ignored while frost protection is active.
+additional pump controls. Select any number of pump buttons in the blueprint.
+Each press starts the pump when it is off or stops it when it is on. Select
+light or switch entities as pump status LEDs; the automation turns all of them
+on while the Shelly pump relay is powered and off when it is not. A press that
+would start the pump is ignored while frost protection is active.
 Entity startup and recovery from an unavailable state are not treated as
 button presses, preventing an accidental pump start after Home Assistant boots.
 
@@ -232,8 +233,8 @@ Create an automation from **Shelly Plus 1PM Pump Protection** and select:
 - **Pump switch**: the Shelly switch entity controlling the pump relay.
 - **Frost lock helper**: the frost-lock toggle helper created above.
 - **Water lines purged helper**: the purge-state toggle helper created above.
-- **Additional start/stop buttons**: optional Button helpers or button
-  entities.
+- **Additional pump buttons**: optional start/stop Button helpers or button
+  entities; each button toggles the pump.
 - **Pump status LEDs**: optional light or switch entities.
 - notification entities for everyone who should be warned.
 
@@ -487,11 +488,11 @@ Do these tests before relying on the setup.
    - Trigger the automation/forecast check and verify notifications.
 
 8. **Additional controls and status LEDs**
-   - Press each configured start button and confirm the pump and every status
-     LED turn on.
-   - Press each configured stop button and confirm the pump and every status
-     LED turn off.
-   - Activate the frost lock and confirm start buttons cannot start the pump.
+   - With the pump off, press each configured pump button and confirm the pump
+     and every status LED turn on.
+   - Press each button again and confirm the pump and every status LED turn
+     off.
+   - Activate the frost lock and confirm the buttons cannot start the pump.
 
 > [!WARNING]
 > Do not perform an automatic-shutdown test in a way that could damage the
