@@ -10,6 +10,8 @@ The design deliberately keeps the critical enforcement on the Shelly:
 - automatic shutdown stops the pump once useful pumping has ended;
 - a maximum runtime limits how long the relay can remain on;
 - Home Assistant supplies current/forecast weather, configuration and alerts;
+- optional Home Assistant buttons can start or stop the pump;
+- optional light or switch entities show whether the pump relay is powered;
 - the Shelly retains its configuration/state in KVS if Home Assistant or the
   network is unavailable.
 
@@ -214,13 +216,25 @@ First create two **Toggle** helpers named `Water Pump Frost Lock` and
 dashboards. The automation keeps both synchronized and treats unreadable
 states as locked and not purged, respectively.
 
+You can also create Button helpers or use existing device button entities as
+additional pump controls. Select any number of start buttons and stop buttons
+in the blueprint. Select light or switch entities as pump status LEDs; the
+automation turns all of them on while the Shelly pump relay is powered and off
+when it is not. Start presses are ignored while frost protection is active.
+Entity startup and recovery from an unavailable state are not treated as
+button presses, preventing an accidental pump start after Home Assistant boots.
+
 Create an automation from **Shelly Plus 1PM Pump Protection** and select:
 
 - **OpenWeatherMap current weather**: the entity from `current` mode.
 - **OpenWeatherMap forecast weather**: the entity from `forecast` mode.
 - **Shelly Plus 1PM**: the pump Shelly.
+- **Pump switch**: the Shelly switch entity controlling the pump relay.
 - **Frost lock helper**: the frost-lock toggle helper created above.
 - **Water lines purged helper**: the purge-state toggle helper created above.
+- **Additional start/stop buttons**: optional Button helpers or button
+  entities.
+- **Pump status LEDs**: optional light or switch entities.
 - notification entities for everyone who should be warned.
 
 Defaults are:
@@ -355,7 +369,7 @@ than treating the measurement as `0 W`.
 ## Maximum runtime
 
 The maximum-runtime timer uses only the relay state. With the default
-configuration, one continuous 16-hour relay-on period turns the relay off. It
+configuration, one continuous 30-minute relay-on period turns the relay off. It
 does not depend on measured power, detected pumping activity, or water flow.
 This provides a final limit when a leak or continuous demand prevents automatic
 shutdown.
@@ -471,6 +485,13 @@ Do these tests before relying on the setup.
    - Temporarily raise the cutoff above a forecast temperature.
    - Set `line_purged=false`.
    - Trigger the automation/forecast check and verify notifications.
+
+8. **Additional controls and status LEDs**
+   - Press each configured start button and confirm the pump and every status
+     LED turn on.
+   - Press each configured stop button and confirm the pump and every status
+     LED turn off.
+   - Activate the frost lock and confirm start buttons cannot start the pump.
 
 > [!WARNING]
 > Do not perform an automatic-shutdown test in a way that could damage the

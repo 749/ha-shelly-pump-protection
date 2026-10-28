@@ -43,6 +43,53 @@ blueprint:
         device:
           integration: shelly
 
+    pump_switch_entity:
+      name: Pump switch
+      description: Switch entity that controls the Shelly pump relay.
+      selector:
+        entity:
+          filter:
+            - domain: switch
+              integration: shelly
+
+    start_button_entities:
+      name: Additional start buttons
+      description: >
+        Optional button entities that should start the pump. Both Button
+        helpers and device button entities are supported. Starts are ignored
+        while frost protection is active.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: input_button
+            - domain: button
+
+    stop_button_entities:
+      name: Additional stop buttons
+      description: Optional button entities that should stop the pump.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: input_button
+            - domain: button
+
+    pump_status_led_entities:
+      name: Pump status LEDs
+      description: >
+        Optional light or switch entities used as status LEDs. They are on
+        while the pump relay is powered and off while it is not powered.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: light
+            - domain: switch
+
     frost_lock_helper:
       name: Frost lock helper
       description: >
@@ -162,6 +209,8 @@ blueprint:
 variables:
   current_weather_entity: !input current_weather_entity
   forecast_weather_entity: !input forecast_weather_entity
+  pump_switch_entity: !input pump_switch_entity
+  pump_status_led_entities: !input pump_status_led_entities
 
   temperature_threshold: !input temperature_threshold
   hysteresis: !input hysteresis
@@ -180,6 +229,20 @@ variables:
     }}
 
 triggers:
+  # Optional HA buttons provide additional pump controls.
+  - trigger: state
+    entity_id: !input start_button_entities
+    id: start_button
+
+  - trigger: state
+    entity_id: !input stop_button_entities
+    id: stop_button
+
+  # Keep optional status LEDs synchronized with the actual relay state.
+  - trigger: state
+    entity_id: !input pump_switch_entity
+    id: pump_state
+
   # Current OWM updates are the primary frost-lock trigger.
   - trigger: state
     entity_id: !input current_weather_entity
@@ -328,6 +391,63 @@ actions:
       - action: input_boolean.turn_off
         target:
           entity_id: !input line_purged_helper
+
+  # -------------------------------------------------------------------------
+  # Optional additional controls and pump-powered status LEDs.
+  # -------------------------------------------------------------------------
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: start_button
+          # Ignore entity creation and unavailable/unknown recovery so a
+          # Home Assistant restart cannot accidentally start the pump.
+          - condition: template
+            value_template: >
+              {{
+                trigger.from_state is not none
+                and trigger.from_state.state not in ['unknown', 'unavailable']
+                and trigger.to_state is not none
+                and trigger.to_state.state not in ['unknown', 'unavailable']
+              }}
+          - condition: state
+            entity_id: !input frost_lock_helper
+            state: "off"
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input pump_switch_entity
+
+      - conditions:
+          - condition: trigger
+            id: stop_button
+          - condition: template
+            value_template: >
+              {{
+                trigger.from_state is not none
+                and trigger.from_state.state not in ['unknown', 'unavailable']
+                and trigger.to_state is not none
+                and trigger.to_state.state not in ['unknown', 'unavailable']
+              }}
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input pump_switch_entity
+
+  - if:
+      - condition: template
+        value_template: "{{ pump_status_led_entities | length > 0 }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ is_state(pump_switch_entity, 'on') }}"
+        then:
+          - action: homeassistant.turn_on
+            target:
+              entity_id: !input pump_status_led_entities
+        else:
+          - action: homeassistant.turn_off
+            target:
+              entity_id: !input pump_status_led_entities
 
   # -------------------------------------------------------------------------
   # Forecast purge warning.
