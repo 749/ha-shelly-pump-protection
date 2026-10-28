@@ -216,8 +216,9 @@ First create two **Toggle** helpers named `Water Pump Frost Lock` and
 dashboards. The automation keeps both synchronized and treats unreadable
 states as locked and not purged, respectively.
 
-You can also create Button helpers or use existing device button entities as
-additional pump controls. Select any number of pump buttons in the blueprint.
+You can also create Button helpers or use existing button or binary-sensor
+entities as additional pump controls. Select any number of pump buttons in
+the blueprint.
 Each press starts the pump when it is off or stops it when it is on. Select
 light or switch entities as pump status LEDs; the automation turns all of them
 on while the Shelly pump relay is powered and off when it is not. A press that
@@ -225,6 +226,10 @@ would start the pump is ignored while frost protection is active, and the
 configured status LEDs flash three times to indicate the frost-lock error.
 Entity startup and recovery from an unavailable state are not treated as
 button presses, preventing an accidental pump start after Home Assistant boots.
+For binary sensors, only the `off` to `on` transition counts as a press;
+releasing the button does not toggle the pump again. Check the sensor's raw
+state in Home Assistant's Developer Tools if your hardware uses a different
+press state.
 
 Create an automation from **Shelly Plus 1PM Pump Protection** and select:
 
@@ -234,8 +239,8 @@ Create an automation from **Shelly Plus 1PM Pump Protection** and select:
 - **Pump switch**: the Shelly switch entity controlling the pump relay.
 - **Frost lock helper**: the frost-lock toggle helper created above.
 - **Water lines purged helper**: the purge-state toggle helper created above.
-- **Additional pump buttons**: optional start/stop Button helpers or button
-  entities; each button toggles the pump.
+- **Additional pump buttons**: optional start/stop Button helpers, button
+  entities, or binary sensors; each press toggles the pump.
 - **Pump status LEDs**: optional light or switch entities.
 - notification entities for everyone who should be warned.
 

@@ -57,8 +57,9 @@ blueprint:
       description: >
         Optional start/stop button entities. Each press stops the pump when it
         is on, or starts it when it is off. Starts are ignored while frost
-        protection is active. Both Button helpers and device button entities
-        are supported.
+        protection is active. Button helpers, device button entities, and
+        binary-sensor push buttons are supported. Binary sensors act on the
+        off-to-on press only.
       default: []
       selector:
         entity:
@@ -66,6 +67,7 @@ blueprint:
           filter:
             - domain: input_button
             - domain: button
+            - domain: binary_sensor
 
     pump_status_led_entities:
       name: Pump status LEDs
@@ -257,6 +259,30 @@ triggers:
     minutes: "0"
     id: forecast_reminder
 
+conditions:
+  # A binary sensor reports both press and release. Only the press may toggle
+  # the pump; reject the release before it can restart an LED flash sequence.
+  - condition: template
+    value_template: >
+      {{
+        trigger is not defined
+        or trigger.id != 'pump_button'
+        or (
+          trigger.from_state is not none
+          and trigger.to_state is not none
+          and trigger.from_state.state not in ['unknown', 'unavailable']
+          and trigger.to_state.state not in ['unknown', 'unavailable']
+          and trigger.from_state.state != trigger.to_state.state
+          and (
+            not trigger.entity_id.startswith('binary_sensor.')
+            or (
+              trigger.from_state.state == 'off'
+              and trigger.to_state.state == 'on'
+            )
+          )
+        )
+      }}
+
 actions:
   # -------------------------------------------------------------------------
   # Synchronize the complete configuration object to Shelly KVS.
@@ -387,16 +413,6 @@ actions:
       - conditions:
           - condition: trigger
             id: pump_button
-          # Ignore entity creation and unavailable/unknown recovery so a
-          # Home Assistant restart cannot accidentally start the pump.
-          - condition: template
-            value_template: >
-              {{
-                trigger.from_state is not none
-                and trigger.from_state.state not in ['unknown', 'unavailable']
-                and trigger.to_state is not none
-                and trigger.to_state.state not in ['unknown', 'unavailable']
-              }}
         sequence:
           - if:
               - condition: template
